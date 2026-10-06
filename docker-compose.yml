@@ -1,0 +1,61 @@
+# ScannPro na VPS, atrás do Traefik (rede traefik9), em https://scannpro.adapterco.com.br
+#   /                                    → painel dos clientes (nginx)
+#   /pagamentos, /webhook/mp, /saude     → serviço de pagamento (Node)
+#
+# Antes de subir: copie a chave da conta de serviço do Firebase para servico/firebase-admin.json
+#   docker compose up -d --build
+
+services:
+  servico:
+    build: ./servico
+    image: scannpro-servico
+    container_name: scannpro-servico
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORTA: 8787
+      URL_PUBLICA: https://scannpro.adapterco.com.br
+      FIREBASE_CHAVE: /run/secrets/firebase-admin.json
+      FIREBASE_PROJECT_ID: adapterdb-aba6f
+      FIREBASE_DATABASE_URL: https://adapterdb-aba6f-default-rtdb.firebaseio.com
+      PIX_VALIDADE_MIN: 31
+      PIX_EMAIL_PAGADOR: pagador@adapterco.com.br
+      PIX_DESCRICAO: Sessão ScannPro
+      CONCILIACAO_S: 20
+    volumes:
+      - ./servico/firebase-admin.json:/run/secrets/firebase-admin.json:ro
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik9"
+      - "traefik.http.routers.scannpro-api.rule=Host(`scannpro.adapterco.com.br`) && (PathPrefix(`/pagamentos`) || Path(`/webhook/mp`) || Path(`/saude`))"
+      - "traefik.http.routers.scannpro-api.priority=100"
+      - "traefik.http.routers.scannpro-api.entrypoints=https"
+      - "traefik.http.routers.scannpro-api.tls=true"
+      - "traefik.http.routers.scannpro-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.scannpro-api.loadbalancer.server.port=8787"
+
+  painel:
+    build:
+      context: .
+      dockerfile: Dockerfile.painel
+    image: scannpro-painel
+    container_name: scannpro-painel
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik9"
+      - "traefik.http.routers.scannpro-painel.rule=Host(`scannpro.adapterco.com.br`)"
+      - "traefik.http.routers.scannpro-painel.priority=1"
+      - "traefik.http.routers.scannpro-painel.entrypoints=https"
+      - "traefik.http.routers.scannpro-painel.tls=true"
+      - "traefik.http.routers.scannpro-painel.tls.certresolver=letsencrypt"
+      - "traefik.http.services.scannpro-painel.loadbalancer.server.port=80"
+
+networks:
+  traefik:
+    external: true
+    name: traefik9

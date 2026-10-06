@@ -1,0 +1,9 @@
+node_modules
+dist
+*.log
+.firebase
+# chave da conta de serviço nunca entra aqui (fica só na VPS)
+*-firebase-adminsdk-*.json
+service-account*.json
+
+*-debug.log

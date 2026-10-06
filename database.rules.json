@@ -1,0 +1,11 @@
+{
+  "rules": {
+    "presenca": {
+      "$idmaq": {
+        ".read": false,
+        ".write": "auth != null && $idmaq.matches(/^[0-9A-F]{4}-[0-9A-F]{4}$/)",
+        ".validate": "newData.hasChildren(['online', 'ts'])"
+      }
+    }
+  }
+}

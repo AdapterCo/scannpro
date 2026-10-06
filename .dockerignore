@@ -1,0 +1,13 @@
+node_modules
+dist
+servico
+tests
+scripts
+.claude
+.firebase
+*.log
+.env
+.env.*
+*-firebase-adminsdk-*.json
+firebase-admin*.json
+service-account*.json

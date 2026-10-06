@@ -1,0 +1,46 @@
+rules_version = '2';
+// Regras do Firestore do ScannPro (ADMIN-APP-INSTRUCOES.md, seção 4).
+// Vários clientes (login e-mail/senha), cada um só com os próprios dados; equipamento entra anônimo.
+// O serviço de confiança (VPS, Admin SDK) não passa por estas regras.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function logado()   { return request.auth != null; }
+    function anonimo()  { return logado() && request.auth.token.firebase.sign_in_provider == 'anonymous'; }
+    function cliente()  { return logado() && request.auth.token.firebase.sign_in_provider == 'password'; }
+    function meu(dados) { return cliente() && dados.dono == request.auth.uid; }
+
+    match /clientes/{uid} {
+      allow get: if cliente() && request.auth.uid == uid;
+      allow create, update: if cliente() && request.auth.uid == uid
+                            && request.resource.data.keys().hasOnly(['email', 'nome', 'tokenMPFinal']);
+      allow list, delete: if false;
+    }
+    match /segredos/{uid} {
+      allow create, update: if cliente() && request.auth.uid == uid;   // somente escrita
+      allow read, delete: if false;
+    }
+    match /dispositivos/{idmaq} {
+      allow get: if anonimo() || meu(resource.data);                   // equipamento lê o próprio documento
+      allow list: if meu(resource.data);                               // consulta precisa filtrar dono == uid
+      // Criar só se o ID ainda não existe: se já for de outro cliente, a gravação vira "update" e é recusada.
+      allow create: if cliente()
+                    && request.resource.data.dono == request.auth.uid
+                    && request.resource.data.idmaq == idmaq
+                    && idmaq.matches('^[0-9A-F]{4}-[0-9A-F]{4}$')
+                    && request.resource.data.valor is int && request.resource.data.valor > 0
+                    && request.resource.data.ativo is bool
+                    && !request.resource.data.keys().hasAny(['online', 'ultimoSinal']);
+      allow update: if meu(resource.data)
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['dono', 'idmaq', 'online', 'ultimoSinal'])
+                    && request.resource.data.valor is int && request.resource.data.valor > 0
+                    && request.resource.data.ativo is bool;
+      allow delete: if meu(resource.data);
+    }
+    match /vendas/{id}     { allow read: if meu(resource.data); allow write: if false; }
+    match /pagamentos/{id} {
+      allow get: if anonimo() || meu(resource.data);
+      allow list: if meu(resource.data);
+      allow write: if false;
+    }
+  }
+}
