@@ -1,12 +1,17 @@
 // Rotas HTTP (contrato da seção 16). Erros sempre como {"erro": "..."} em português, sem detalhes internos.
+import path from 'node:path';
 import express from 'express';
 import { ErroPublico } from './pagamentos.js';
 import { criarLimitador } from './limite.js';
 
-export function criarApp({ auth, pagamentos, limitador = criarLimitador(), log = console }) {
+/**
+ * pastaPainel: pasta com o build do painel (dist). Se informada, o mesmo servidor entrega o site;
+ * o Traefik só faz o proxy para esta porta.
+ */
+export function criarApp({ auth, pagamentos, limitador = criarLimitador(), log = console, pastaPainel = null }) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback'); // atrás do Caddy/nginx na própria VPS
+  app.set('trust proxy', true); // atrás do Traefik
   app.use(express.json({ limit: '16kb' }));
 
   /** Exige o ID token do login anônimo do Firebase (o equipamento). */
@@ -63,6 +68,23 @@ export function criarApp({ auth, pagamentos, limitador = criarLimitador(), log =
       res.status(500).json({});
     }
   });
+
+  // Painel: arquivos estáticos; qualquer outra página (/dispositivos, /relatorio...) recebe o index.html.
+  if (pastaPainel) {
+    pastaPainel = path.resolve(pastaPainel); // sendFile exige caminho absoluto
+    app.use(
+      express.static(pastaPainel, {
+        index: false,
+        setHeaders: (res, arquivo) =>
+          res.setHeader('Cache-Control', arquivo.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache'),
+      }),
+    );
+    app.get('/{*pagina}', (req, res, next) => {
+      if (path.extname(req.path)) return next(); // arquivo inexistente: 404
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(path.join(pastaPainel, 'index.html'));
+    });
+  }
 
   app.use((_req, res) => res.status(404).json({ erro: 'Não encontrado.' }));
   // JSON malformado e outros erros do express

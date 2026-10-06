@@ -2,7 +2,7 @@
 // Credencial: FIREBASE_CHAVE aponta para a chave da conta de serviço (arquivo fora do git).
 // Variável própria de propósito: GOOGLE_APPLICATION_CREDENTIALS pode estar definida no sistema
 // apontando para a chave de outro projeto.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getDatabase } from 'firebase-admin/database';
@@ -22,9 +22,13 @@ const emulador = !!process.env.FIRESTORE_EMULATOR_HOST;
 let credencial;
 if (!emulador) {
   const chave = process.env.FIREBASE_CHAVE;
-  if (!chave || !existsSync(chave)) {
+  if (!chave || !existsSync(chave) || !statSync(chave).isFile()) {
     console.error(
       `[inicio] Chave do Firebase Admin não encontrada (FIREBASE_CHAVE=${chave || '(vazio)'}).\n` +
+        (chave && existsSync(chave)
+          ? '  O caminho é uma PASTA, não um arquivo: o Docker cria uma pasta quando o arquivo não existe na hora do "up".\n' +
+            '  Na VPS: docker compose down; rm -r servico/firebase-admin.json; copie o arquivo .json da chave; docker compose up -d\n'
+          : '') +
         '  Gere em: console do Firebase > Configurações do projeto > Contas de serviço > Gerar nova chave privada.',
     );
     process.exit(1);
@@ -47,7 +51,8 @@ const auth = getAuth();
 
 const pagamentos = criarServicoPagamentos({ db, mp: criarClienteMP({ base: config.mpApi }), config });
 const presenca = iniciarEspelhoPresenca({ rtdb, db });
-const servidor = criarApp({ auth, pagamentos }).listen(config.porta, config.host, () =>
+const pastaPainel = process.env.PASTA_PAINEL && existsSync(process.env.PASTA_PAINEL) ? process.env.PASTA_PAINEL : null;
+const servidor = criarApp({ auth, pagamentos, pastaPainel }).listen(config.porta, config.host, () =>
   console.log(`[inicio] serviço ScannPro ouvindo em ${config.host}:${config.porta}`),
 );
 

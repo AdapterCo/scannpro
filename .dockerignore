@@ -1,13 +1,20 @@
 node_modules
 dist
-servico
 tests
 scripts
+deploy
 .claude
 .firebase
 *.log
+*.md
 .env
 .env.*
+servico/node_modules
+servico/test
+servico/.env
+servico/.env.*
+# chave do Firebase nunca vai para a imagem
 *-firebase-adminsdk-*.json
 firebase-admin*.json
+servico/firebase-admin*.json
 service-account*.json
