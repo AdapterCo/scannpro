@@ -5,6 +5,33 @@ import { createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
 import { assinaturaValida, criarClienteMP, dataMP } from '../src/mercadopago.js';
 import { criarLimitador } from '../src/limite.js';
+import { garantirIndices } from '../src/indices.js';
+import { fileURLToPath } from 'node:url';
+
+test('índices: cria os de firestore.indexes.json e aceita os que já existem', async () => {
+  const chamadas = [];
+  const respostas = [new Response('{}', { status: 200 }), new Response('{"error":{"status":"ALREADY_EXISTS"}}', { status: 409 })];
+  const avisos = [];
+  const r = await garantirIndices({
+    credencial: { getAccessToken: async () => ({ access_token: 'tok' }) },
+    projectId: 'proj',
+    arquivo: fileURLToPath(new URL('../../firestore.indexes.json', import.meta.url)),
+    log: { info() {}, warn: (m) => avisos.push(m) },
+    fetch: async (url, op) => (chamadas.push([url, op]), respostas.shift() ?? new Response('{"error":"PERMISSION_DENIED"}', { status: 403 })),
+  });
+  assert.equal(chamadas.length, 2);
+  assert.equal(chamadas[0][0], 'https://firestore.googleapis.com/v1/projects/proj/databases/(default)/collectionGroups/vendas/indexes');
+  assert.equal(chamadas[0][1].headers.Authorization, 'Bearer tok');
+  assert.deepEqual(JSON.parse(chamadas[0][1].body), {
+    queryScope: 'COLLECTION',
+    fields: [
+      { fieldPath: 'dono', order: 'ASCENDING' },
+      { fieldPath: 'data', order: 'DESCENDING' },
+    ],
+  });
+  assert.deepEqual(r.map(([, s]) => s), ['criando', 'ja-existe']);
+  assert.equal(avisos.length, 0);
+});
 
 const segredo = 'segredo-de-teste';
 const assinar = (manifesto) => createHmac('sha256', segredo).update(manifesto).digest('hex');

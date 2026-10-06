@@ -61,11 +61,10 @@ export function Relatorio() {
       .catch((e: { code?: string; message?: string }) => {
         if (cancelado) return;
         if (e.code === 'failed-precondition') {
-          const link = /https:\/\/console\.firebase\.google\.com\S+/.exec(e.message ?? '')?.[0];
+          // O serviço cria o índice ao iniciar; o Firestore leva alguns minutos para deixá-lo pronto.
           setResultado({
             tipo: 'erro',
-            mensagem: 'O Firestore precisa do índice de vendas por dispositivo e data. Publique firestore.indexes.json ou crie pelo link:',
-            link,
+            mensagem: 'O índice das vendas está sendo preparado pelo Firestore (leva alguns minutos). Tente de novo em instantes.',
           });
         } else {
           setResultado({ tipo: 'erro', mensagem: 'Não foi possível carregar as vendas. Verifique a conexão.' });

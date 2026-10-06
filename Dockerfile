@@ -14,10 +14,11 @@ RUN npm run build
 # 2) serviço
 FROM node:22-alpine
 WORKDIR /app
-ENV NODE_ENV=production HOST=0.0.0.0 PORTA=8787 PASTA_PAINEL=/app/painel
+ENV NODE_ENV=production HOST=0.0.0.0 PORTA=8787 PASTA_PAINEL=/app/painel INDICES_ARQUIVO=/app/firestore.indexes.json
 COPY servico/package.json servico/package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY servico/src ./src
+COPY firestore.indexes.json ./firestore.indexes.json
 COPY --from=painel /painel/dist ./painel
 USER node
 EXPOSE 8787

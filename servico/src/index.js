@@ -12,6 +12,8 @@ import { criarClienteMP } from './mercadopago.js';
 import { criarServicoPagamentos } from './pagamentos.js';
 import { iniciarEspelhoPresenca } from './presenca.js';
 import { criarApp } from './http.js';
+import { garantirIndices } from './indices.js';
+import { fileURLToPath } from 'node:url';
 
 const config = lerConfig();
 if (!config.urlPublica.startsWith('https://')) {
@@ -55,6 +57,12 @@ const pastaPainel = process.env.PASTA_PAINEL && existsSync(process.env.PASTA_PAI
 const servidor = criarApp({ auth, pagamentos, pastaPainel }).listen(config.porta, config.host, () =>
   console.log(`[inicio] serviço ScannPro ouvindo em ${config.host}:${config.porta}`),
 );
+
+// Índices compostos do Firestore (firestore.indexes.json): criados aqui, sem passo manual.
+if (credencial) {
+  const arquivo = process.env.INDICES_ARQUIVO ?? fileURLToPath(new URL('../../firestore.indexes.json', import.meta.url));
+  garantirIndices({ credencial, projectId: config.projectId, arquivo }).catch((e) => console.warn(`[indices] ${e.message}`));
+}
 
 // Conciliação sem sobreposição: só agenda a próxima quando a atual termina.
 let parado = false;
