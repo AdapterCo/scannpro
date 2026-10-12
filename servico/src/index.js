@@ -13,6 +13,8 @@ import { criarServicoPagamentos } from './pagamentos.js';
 import { iniciarEspelhoPresenca } from './presenca.js';
 import { criarApp } from './http.js';
 import { garantirIndices } from './indices.js';
+import { publicarRegras } from './regras.js';
+import { getSecurityRules } from 'firebase-admin/security-rules';
 import { fileURLToPath } from 'node:url';
 
 const config = lerConfig();
@@ -58,9 +60,16 @@ const servidor = criarApp({ auth, pagamentos, pastaPainel }).listen(config.porta
   console.log(`[inicio] serviço ScannPro ouvindo em ${config.host}:${config.porta}`),
 );
 
-// Índices compostos do Firestore (firestore.indexes.json): criados aqui, sem passo manual.
+// Regras e índices do Firestore/Realtime Database vêm do repositório: publicados aqui, sem passo manual.
 if (credencial) {
-  const arquivo = process.env.INDICES_ARQUIVO ?? fileURLToPath(new URL('../../firestore.indexes.json', import.meta.url));
+  const raizRepo = (nome) => fileURLToPath(new URL(`../../${nome}`, import.meta.url));
+  publicarRegras({
+    seguranca: getSecurityRules(),
+    rtdb,
+    arquivoFirestore: process.env.REGRAS_FIRESTORE ?? raizRepo('firestore.rules'),
+    arquivoDatabase: process.env.REGRAS_DATABASE ?? raizRepo('database.rules.json'),
+  }).catch((e) => console.warn(`[regras] ${e.message}`));
+  const arquivo = process.env.INDICES_ARQUIVO ?? raizRepo('firestore.indexes.json');
   garantirIndices({ credencial, projectId: config.projectId, arquivo }).catch((e) => console.warn(`[indices] ${e.message}`));
 }
 

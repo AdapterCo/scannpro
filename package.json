@@ -8,8 +8,8 @@
     "dev:emulador": "vite --mode emulador",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run tests/unit",
-    "test:regras": "firebase emulators:exec --only firestore,database --project demo-scannpro \"vitest run tests/regras\"",
+    "test": "vitest run tests/unit --exclude \"**/.kilo/**\"",
+    "test:regras": "firebase emulators:exec --only firestore,database --project demo-scannpro \"vitest run tests/regras --exclude **/.kilo/**\"",
     "test:servico": "firebase emulators:exec --only auth,firestore,database --project demo-scannpro \"npm --prefix servico test\"",
     "emuladores": "firebase emulators:start --only auth,firestore,database --project demo-scannpro",
     "seed:emulador": "node scripts/seed-emulador.mjs"

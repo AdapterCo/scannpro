@@ -2,7 +2,7 @@
   "rules": {
     "presenca": {
       "$idmaq": {
-        ".read": false,
+        ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password'",
         ".write": "auth != null && $idmaq.matches(/^[0-9A-F]{4}-[0-9A-F]{4}$/)",
         ".validate": "newData.hasChildren(['online', 'ts'])"
       }

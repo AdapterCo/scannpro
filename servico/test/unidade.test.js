@@ -6,6 +6,45 @@ import { createServer } from 'node:http';
 import { assinaturaValida, criarClienteMP, dataMP } from '../src/mercadopago.js';
 import { criarLimitador } from '../src/limite.js';
 import { garantirIndices } from '../src/indices.js';
+import { publicarRegras } from '../src/regras.js';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+test('regras: publica só o que mudou e avisa quando falta permissão', async () => {
+  const pasta = mkdtempSync(join(tmpdir(), 'regras-'));
+  const fs = join(pasta, 'firestore.rules');
+  const rt = join(pasta, 'database.rules.json');
+  writeFileSync(fs, "rules_version = '2';\nservice cloud.firestore {}\n");
+  writeFileSync(rt, '{"rules":{"presenca":{".read":false}}}');
+  const silencio = { info() {}, warn() {} };
+
+  // 1) tudo igual ao que está no ar (com \r\n e espaços diferentes): nada é publicado
+  const publicadas = [];
+  const seguranca = {
+    getFirestoreRuleset: async () => ({ source: [{ name: 'firestore.rules', content: "rules_version = '2';\r\nservice cloud.firestore {}" }] }),
+    releaseFirestoreRulesetFromSource: async (s) => publicadas.push(['fs', s]),
+  };
+  const rtdb = { getRules: async () => '{ "rules": { "presenca": { ".read": false } } }', setRules: async (s) => publicadas.push(['rt', s]) };
+  assert.deepEqual(await publicarRegras({ seguranca, rtdb, arquivoFirestore: fs, arquivoDatabase: rt, log: silencio }), { firestore: 'igual', database: 'igual' });
+  assert.equal(publicadas.length, 0);
+
+  // 2) diferentes: publica os dois com o conteúdo do repositório
+  seguranca.getFirestoreRuleset = async () => ({ source: [{ content: 'antiga' }] });
+  rtdb.getRules = async () => '{"rules":{}}';
+  assert.deepEqual(await publicarRegras({ seguranca, rtdb, arquivoFirestore: fs, arquivoDatabase: rt, log: silencio }), { firestore: 'publicada', database: 'publicada' });
+  assert.equal(publicadas[0][1], "rules_version = '2';\nservice cloud.firestore {}\n");
+  assert.equal(publicadas[1][1], '{"rules":{"presenca":{".read":false}}}');
+
+  // 3) sem permissão no Firestore: não derruba nada, avisa qual papel falta
+  const avisos = [];
+  seguranca.releaseFirestoreRulesetFromSource = async () => {
+    throw Object.assign(new Error('The caller does not have permission'), { code: 'security-rules/permission-denied' });
+  };
+  const r = await publicarRegras({ seguranca, rtdb: { ...rtdb, getRules: async () => '{"rules":{"presenca":{".read":false}}}' }, arquivoFirestore: fs, arquivoDatabase: rt, log: { info() {}, warn: (m) => avisos.push(m) } });
+  assert.deepEqual(r, { firestore: 'erro', database: 'igual' });
+  assert.match(avisos[0], /Firebase Rules Admin/);
+});
 import { fileURLToPath } from 'node:url';
 
 test('índices: cria os de firestore.indexes.json e aceita os que já existem', async () => {
